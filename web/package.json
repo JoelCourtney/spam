@@ -26,6 +26,7 @@
 	},
 	"type": "module",
 	"dependencies": {
-		"lodash": "^4.17.21"
+		"lodash": "^4.17.21",
+		"string-comparison": "^1.3.0"
 	}
 }

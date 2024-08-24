@@ -7,4 +7,15 @@ pub struct Story {
     text: String,
     entries: HashMap<String, String>,
     description: String,
+    instruction: String,
+    model: String
+}
+
+impl Story {
+    pub(crate) fn new(title: String) -> Self {
+        Self {
+            title,
+            ..Self::default()
+        }
+    }
 }
