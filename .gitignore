@@ -13,3 +13,5 @@ target/
 
 web/build
 stories
+
+.env
