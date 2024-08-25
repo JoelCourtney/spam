@@ -14,8 +14,36 @@ export interface Generation {
     abort: AbortController
 }
 
-export async function generationStream(story: Story, key: String): Promise<Generation> {
+async function buildInput(story: Story, template: string): Promise<string> {
+    let result = template
+        .replace("%instruction%", story.instruction)
+        .replace("%description%", story.description);
+
+    const entriesStart = result.indexOf("%entries%");
+    const entriesEnd = result.indexOf("%end entries%");
+    const entryTemplate = result.slice(entriesStart + 9, entriesEnd);
+    {
+        let entryResultBuilder = result.slice(0, entriesStart);
+        for (const key in story.entries) {
+            entryResultBuilder += entryTemplate
+                .replace("%key%", key)
+                .replace("%value%", story.entries[key]);
+        }
+        result = entryResultBuilder + result.slice(entriesEnd + 13);
+    }
+
+    result = result
+        .replace("%title%", story.title)
+        .replace("%text%", story.text);
+    
+    console.log(result);
+
+    return result;
+}
+
+export async function generationStream(story: Story, key: String, promptTemplate: string): Promise<Generation> {
     let abortController = new AbortController();
+    const input = await buildInput(story, promptTemplate);
     let response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -25,6 +53,7 @@ export async function generationStream(story: Story, key: String): Promise<Gener
         body: JSON.stringify({
           "model": story.model,
           "stream": true,
+          "transforms": ["middle-out"],
           "messages": [
             {"role": "user", "content": "What is the meaning of life?"},
           ],

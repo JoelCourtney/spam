@@ -1,0 +1,19 @@
+### Instruction:
+
+You are a writing assistant. Continue the story in the same prose style. Use markdown formatting.
+
+Specific instructions:
+%instruction%
+
+Story description:
+%description%
+
+Background information:
+%entries%
+*%key%*: %value%%end entries%
+
+### Response
+
+# %title%
+
+%text%

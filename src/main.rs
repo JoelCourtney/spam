@@ -22,6 +22,7 @@ async fn main() -> std::io::Result<()> {
                     .service(new)
                     .service(delete)
                     .service(key)
+                    .service(prompt)
             )
             .service(ResourceFiles::new("/", generated))
     })
@@ -94,6 +95,11 @@ async fn delete(body: web::Json<String>) -> impl Responder {
 #[post("/key")]
 async fn key() -> impl Responder {
     web::Json(std::env::var("OPENROUTER_API_KEY").unwrap())
+}
+
+#[post("/prompt")]
+async fn prompt() -> impl Responder {
+    std::fs::read_to_string(&"prompt.txt").unwrap()
 }
 
 fn read_story(name: &str) -> Story {

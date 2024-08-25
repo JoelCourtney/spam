@@ -148,7 +148,7 @@
     async function generate() {
         if (currentStory !== undefined) {
             try {
-                let generation = await generationStream(currentStory, await key);
+                let generation = await generationStream(currentStory, await key, await promptTemplate);
                 generationAbort = generation.abort;
                 for await (const chunk of generation.stream) {
                     currentStory.text += chunk;
@@ -160,6 +160,22 @@
             }
         }
     }
+
+    let promptTemplate = fetch("/api/prompt", {
+        method: "POST",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
+    }).then(
+        r => {
+            if (r.status !== 200) {
+                console.error(r);
+            } else {
+                return r.text();
+            }
+        }
+    );
 </script>
 
 <div class="container-fluid" style="height: 10%">
