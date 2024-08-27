@@ -2,10 +2,19 @@
     import _ from "lodash";
     import sc from "string-comparison";
 </script>
+
 <script lang="ts">
     import { onDestroy } from "svelte";
     import { generationStream } from "../generate";
-    import type { Story, Generation } from "../generate";
+    import type { Story } from "../generate";
+
+    import {listener, listenerCtx} from '@milkdown/plugin-listener'
+    import { Crepe, CrepeFeature } from '@milkdown/crepe';
+    import { replaceAll, getMarkdown } from "@milkdown/utils";
+
+
+    import '@milkdown/crepe/theme/common/style.css'
+    import '@milkdown/crepe/theme/nord-dark.css';
 
     export let title: string | undefined;
 
@@ -116,42 +125,49 @@
     });
 
     async function save() {
-        if (currentStory !== undefined && originalStory !== undefined && currentStory.title !== originalStory.title) {
-            await fetch("/api/rename", {
-                method: "POST",
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    from: originalStory.title,
-                    to: currentStory.title
-                })
-            });
-            originalStory.title = currentStory.title;
-        }
-        if (currentStory !== undefined && !_.isEqual(currentStory, originalStory)) {
-            await fetch("/api/write", {
-                method: "POST",
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(currentStory)
-            });
-            originalStory = _.cloneDeep(currentStory);
+        if (currentStory !== undefined) {
+            if (originalStory !== undefined && currentStory.title !== originalStory.title) {
+                await fetch("/api/rename", {
+                    method: "POST",
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        from: originalStory.title,
+                        to: currentStory.title
+                    })
+                });
+                originalStory.title = currentStory.title;
+            }
+            if (!_.isEqual(currentStory, originalStory)) {
+                await fetch("/api/write", {
+                    method: "POST",
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(currentStory)
+                });
+                originalStory = _.cloneDeep(currentStory);
+            }
         }
     }
 
     let generationAbort: AbortController | undefined = undefined;
+    let textBeforeGeneration: string | undefined;
 
     async function generate() {
         if (currentStory !== undefined) {
+            currentStory.text = editorInstance.action(getMarkdown());
+            textBeforeGeneration = currentStory.text;
             try {
                 let generation = await generationStream(currentStory, await key, await promptTemplate);
                 generationAbort = generation.abort;
                 for await (const chunk of generation.stream) {
                     currentStory.text += chunk;
+                    editorInstance.action(replaceAll(currentStory.text));
+                    scrollToBottom();
                 }
             } catch (e) {
                 console.log(e);
@@ -159,6 +175,19 @@
                 generationAbort = undefined;
             }
         }
+    }
+
+    function undoGeneration() {
+        if (textBeforeGeneration !== undefined) {
+            editorInstance.action(replaceAll(textBeforeGeneration));
+            currentStory.text = textBeforeGeneration;
+            textBeforeGeneration = undefined;
+        }
+    }
+
+    function scrollToBottom() {
+        let editorArea = document.getElementsByClassName("editor")[0];
+        editorArea.scrollIntoView(false);
     }
 
     let promptTemplate = fetch("/api/prompt", {
@@ -176,6 +205,31 @@
             }
         }
     );
+
+    let editorInstance: Editor;
+
+    function editor(dom: any) {
+        const crepe = new Crepe({
+            root: dom,
+            defaultValue: currentStory?.text,
+            featureConfigs: {
+                [CrepeFeature.Placeholder]: {
+                    text: 'write...',
+                    mode: 'block'
+                }
+            }
+        });
+        crepe.editor.config((ctx) => {
+            ctx.get(listenerCtx).markdownUpdated((ctx: any, markdown: string, _: string) => {
+                if (currentStory !== undefined && generationAbort === undefined) currentStory.text = markdown;
+            })
+        }).use(listener);
+        crepe.create()
+            .then(e => {
+                editorInstance = e;
+                scrollToBottom();
+            });
+    }
 </script>
 
 <div class="container-fluid" style="height: 10%">
@@ -213,8 +267,9 @@
         <div class="container-fluid" style="height: 80%">
             {#if mainView}
                 <div class="row justify-content-center h-100" style="padding: none;">
-                    <div class="h-100 col-8">
-                        <textarea id="main" placeholder="spam" class="form-control h-100" rows="6" bind:value={currentStory.text}></textarea>
+                    <div class="h-100 col-8" id="maindiv">
+                        <div use:editor class="h-100"/>
+                        <!-- <textarea id="main" placeholder="spam" class="form-control h-100" rows="6" bind:value={currentStory.text}></textarea> -->
                     </div>
                 </div>
             {:else}
@@ -314,6 +369,12 @@
                             </div>
                         </div>
                     </div>
+                    <div class="col-2 text-center">
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-primary" on:click={() => {undoGeneration(); generate();}} style="height: 58px" disabled={textBeforeGeneration === undefined}>retry</button>
+                            <button class="btn btn-outline-primary" on:click={undoGeneration} disabled={textBeforeGeneration === undefined}>undo</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         {/if}
@@ -327,18 +388,13 @@
         resize: none;
         box-shadow: none !important;
         
-        line-height: 180%;
+        line-height: 150%;
         font-size: 17px;
     }
     
-    textarea#main {
-        border-radius: 0px;
-        border: none !important;
-        outline: none !important;
-    }
-
     div.extras {
         padding-top: 12px;
         padding-bottom: 12px;
     }
+
 </style>

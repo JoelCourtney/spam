@@ -22,3 +22,22 @@ html, body, .container {
 	font-weight: 700;
 	font-style: normal;
 }
+
+.milkdown {
+	border-radius: 10px;
+	border: none;
+	outline: none !important;
+	overflow-y: scroll;
+	height: 100% !important;
+
+	--crepe-font-title: Montserrat !important;
+	--crepe-font-default: Montserrat !important;
+	--crepe-font-code: "JetBrains Mono", Menlo, Monaco, "Courier New", Courier, monospace;
+
+	--crepe-color-background: #272b30 !important;
+}
+
+.editor {
+	padding-top: 40px !important;
+	padding-bottom: 40px !important;
+}

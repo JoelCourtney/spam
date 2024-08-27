@@ -1,19 +1,23 @@
 ### Instruction:
 
-You are a writing assistant. Continue the story in the same prose style. Use markdown formatting.
+You are a writing assistant. Write the story described below. The response must be valid markdown.
+You will have to write this story in multiple generations, so you must pick up where you left off.
+
+Story description:
 
 Specific instructions:
 %instruction%
-
-Story description:
-%description%
 
 Background information:
 %entries%
 *%key%*: %value%%end entries%
 
-### Response
+### Response:
 
 # %title%
+
+%description%
+
+---
 
 %text%

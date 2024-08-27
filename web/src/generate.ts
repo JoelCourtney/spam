@@ -36,8 +36,6 @@ async function buildInput(story: Story, template: string): Promise<string> {
         .replace("%title%", story.title)
         .replace("%text%", story.text);
     
-    console.log(result);
-
     return result;
 }
 
@@ -51,12 +49,10 @@ export async function generationStream(story: Story, key: String, promptTemplate
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          "model": story.model,
-          "stream": true,
-          "transforms": ["middle-out"],
-          "messages": [
-            {"role": "user", "content": "What is the meaning of life?"},
-          ],
+          model: story.model,
+          stream: true,
+          transforms: ["middle-out"],
+          prompt: input
         }),
         signal: abortController.signal
       });
@@ -73,7 +69,10 @@ export async function generationStream(story: Story, key: String, promptTemplate
                 let results = lines
                     .filter(l => l.indexOf("data:") !== -1 && l.indexOf("[DONE]") === -1)
                     .map(l => JSON.parse(l.slice(6)))
-                    .flatMap(o => o.choices.map((c: any) => c.delta.content));
+                    .flatMap(o => o.choices.map((c: any) => {
+                        if ("delta" in c) return c.delta.content;
+                        else return c.text;
+                    }));
                 yield* results;
             }
         }
