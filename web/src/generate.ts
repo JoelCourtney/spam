@@ -14,7 +14,7 @@ export interface Generation {
     abort: AbortController
 }
 
-async function buildInput(story: Story, template: string): Promise<string> {
+async function buildPrompt(story: Story, template: string): Promise<string> {
     let result = template
         .replace("%instruction%", story.instruction)
         .replace("%description%", story.description);
@@ -39,9 +39,9 @@ async function buildInput(story: Story, template: string): Promise<string> {
     return result;
 }
 
-export async function generationStream(story: Story, key: String, promptTemplate: string): Promise<Generation> {
+export async function generationStream(story: Story, model: string, key: string, promptTemplate: string): Promise<Generation> {
     let abortController = new AbortController();
-    const input = await buildInput(story, promptTemplate);
+    const prompt = await buildPrompt(story, promptTemplate);
     let response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -49,10 +49,10 @@ export async function generationStream(story: Story, key: String, promptTemplate
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: story.model,
+          model,
           stream: true,
           transforms: ["middle-out"],
-          prompt: input
+          prompt
         }),
         signal: abortController.signal
       });

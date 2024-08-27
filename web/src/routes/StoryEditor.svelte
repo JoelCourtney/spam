@@ -96,11 +96,18 @@
                 return r.json();
             }
         }
-    ).then(j => j["data"]);
+    ).then(j => {
+        let data = j["data"];
+        let result: any = {};
+        for (const m of data) {
+            result[m.name] = m;
+        }
+        return result;
+    });
 
     async function filteredModels(search: string): Promise<string[]> {
         let ms = await models;
-        let ids = ms.map((m: any) => m.id);
+        let ids = Object.keys(ms);
 
         let sorted = sc.jaroWinkler.sortMatch(search, ids)
             .map(r => r.member);
@@ -110,7 +117,7 @@
 
     async function cost(model: string): Promise<number | undefined> {
         let ms = await models;
-        let result = ms.find((m: any) => m.id === model);
+        let result = ms[model];
         if (result !== undefined) {
             return Number(result.pricing.completion) * 1_000_000;
         }
@@ -162,7 +169,8 @@
             currentStory.text = editorInstance.action(getMarkdown());
             textBeforeGeneration = currentStory.text;
             try {
-                let generation = await generationStream(currentStory, await key, await promptTemplate);
+                let ms = await models;
+                let generation = await generationStream(currentStory, ms[currentStory.model], await key, await promptTemplate);
                 generationAbort = generation.abort;
                 for await (const chunk of generation.stream) {
                     currentStory.text += chunk;
@@ -364,14 +372,14 @@
                                 {#if generationAbort === undefined}
                                     <button class="btn btn-outline-primary" type="button" id="spam-button" on:click={generate}>spam</button>
                                 {:else}
-                                    <button class="btn btn-outline-danger" type="button" id="spam-button" on:click={() => generationAbort.abort()}>stop</button>
+                                    <button class="btn btn-outline-danger" type="button" id="spam-button" on:click={() => generationAbort?.abort()}>stop</button>
                                 {/if}
                             </div>
                         </div>
                     </div>
                     <div class="col-2 text-center">
                         <div class="btn-group" role="group">
-                            <button class="btn btn-outline-primary" on:click={() => {undoGeneration(); generate();}} style="height: 58px" disabled={textBeforeGeneration === undefined}>retry</button>
+                            <button class="btn btn-outline-primary" on:click={() => {generationAbort?.abort(); undoGeneration(); generate();}} style="height: 58px" disabled={textBeforeGeneration === undefined}>retry</button>
                             <button class="btn btn-outline-primary" on:click={undoGeneration} disabled={textBeforeGeneration === undefined}>undo</button>
                         </div>
                     </div>
