@@ -9,7 +9,7 @@ include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    dotenv::dotenv().ok().unwrap();
+    dotenv::dotenv().ok().expect("could not find .env file");
     HttpServer::new(move || {
         let generated = generate();
         App::new()
@@ -33,7 +33,7 @@ async fn main() -> std::io::Result<()> {
 
 #[post("/list")]
 async fn list() -> impl Responder {
-    let paths = std::fs::read_dir("./stories").unwrap();
+    let paths = std::fs::read_dir("./stories").expect("could not find directory ./stories");
 
     let mut dir_entries = paths.into_iter()
         .map(|f| f.unwrap())
