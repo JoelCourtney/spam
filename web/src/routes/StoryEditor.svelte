@@ -170,7 +170,7 @@
             textBeforeGeneration = currentStory.text;
             try {
                 let ms = await models;
-                let generation = await generationStream(currentStory, ms[currentStory.model], await key, await promptTemplate);
+                let generation = await generationStream(currentStory, ms[currentStory.model].id, await key, await promptTemplate);
                 generationAbort = generation.abort;
                 for await (const chunk of generation.stream) {
                     currentStory.text += chunk;

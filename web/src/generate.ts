@@ -40,6 +40,9 @@ async function buildPrompt(story: Story, template: string): Promise<string> {
 }
 
 export async function generationStream(story: Story, model: string, key: string, promptTemplate: string): Promise<Generation> {
+    if (model === undefined) {
+        throw new Error("model must be defined");
+    }
     let abortController = new AbortController();
     const prompt = await buildPrompt(story, promptTemplate);
     let response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -52,6 +55,7 @@ export async function generationStream(story: Story, model: string, key: string,
           model,
           stream: true,
           transforms: ["middle-out"],
+          seed: Math.floor(Math.random() * 1_000_000),
           prompt
         }),
         signal: abortController.signal
