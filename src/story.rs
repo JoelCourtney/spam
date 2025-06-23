@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Deserialize, Serialize, Default)]
 pub struct Story {
@@ -8,7 +8,7 @@ pub struct Story {
     entries: HashMap<String, String>,
     description: String,
     instruction: String,
-    model: String
+    model: String,
 }
 
 impl Story {

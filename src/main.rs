@@ -85,7 +85,7 @@ struct RenamePayload {
 
 #[post("/rename")]
 async fn rename(body: web::Json<RenamePayload>) -> impl Responder {
-    rename_story(&*body.from, &*body.to);
+    rename_story(&body.from, &body.to);
 
     HttpResponse::Ok().await
 }
@@ -117,7 +117,8 @@ async fn prompt() -> impl Responder {
 fn read_story(name: &str) -> Story {
     let path = format!("{}/{name}.json", stories_dir());
     serde_json::from_str::<Story>(
-        &*std::fs::read_to_string(path.clone()).expect(&format!("could not find file: {path}")),
+        &std::fs::read_to_string(path.clone())
+            .unwrap_or_else(|_| panic!("could not find file: {path}")),
     )
     .unwrap()
 }
