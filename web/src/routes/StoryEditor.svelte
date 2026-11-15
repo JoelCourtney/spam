@@ -69,9 +69,10 @@
         } else {
             return r.json();
         }
-    }).then(j => {
+    }).then(async j => {
         originalStory = j;
         currentStory = _.cloneDeep(j);
+        await reconcileImages();
     });
 
     let key = fetch("/api/key", {
@@ -163,6 +164,102 @@
 
     let generationAbort: AbortController | undefined = undefined;
     let textBeforeGeneration: string | undefined;
+
+    let dragover: boolean = false;
+    let fileInput: HTMLInputElement;
+    let uploadStatus: string | undefined = undefined;
+
+    let showImages: boolean = false;
+
+    async function reconcileImages() {
+        if (currentStory === undefined) return;
+        const res = await fetch("/api/assets/list", {
+            method: "POST",
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify(currentStory.title)
+        });
+        const diskFiles: string[] = res.ok ? await res.json() : [];
+        const existing = currentStory.images ?? [];
+        const kept = existing.filter(name => diskFiles.includes(name));
+        const added = diskFiles.filter(name => !kept.includes(name));
+        currentStory.images = [...kept, ...added];
+    }
+
+    async function toggleImages() {
+        showImages = !showImages;
+        if (showImages) {
+            await reconcileImages();
+        }
+    }
+
+    async function uploadFile(file: File): Promise<boolean> {
+        if (currentStory === undefined) return false;
+        const res = await fetch(
+            `/api/upload/${encodeURIComponent(currentStory.title)}/${encodeURIComponent(file.name)}`,
+            {
+                method: "POST",
+                headers: { 'Content-Type': 'application/octet-stream' },
+                body: file
+            }
+        );
+        if (!res.ok) {
+            console.error("upload failed", file.name, res.status);
+            return false;
+        }
+        return true;
+    }
+
+    async function uploadFiles(files: FileList | File[] | null | undefined) {
+        if (!files || files.length === 0) return;
+        if (currentStory === undefined) return;
+        const images = Array.from(files).filter(f => f.type.startsWith("image/"));
+        if (images.length === 0) {
+            uploadStatus = "no image files";
+            return;
+        }
+        uploadStatus = `uploading ${images.length}...`;
+        for (const file of images) {
+            const ok = await uploadFile(file);
+            if (ok && !currentStory.images.includes(file.name)) {
+                currentStory.images = [...currentStory.images, file.name];
+            }
+        }
+        uploadStatus = `uploaded ${images.length}`;
+        setTimeout(() => uploadStatus = undefined, 2000);
+    }
+
+    async function deleteImage(name: string) {
+        if (currentStory === undefined) return;
+        const res = await fetch(
+            `/api/assets/delete/${encodeURIComponent(currentStory.title)}/${encodeURIComponent(name)}`,
+            { method: "POST" }
+        );
+        if (!res.ok && res.status !== 404) {
+            console.error("delete failed", name, res.status);
+            return;
+        }
+        currentStory.images = currentStory.images.filter(n => n !== name);
+    }
+
+    function moveImage(index: number, delta: number) {
+        if (currentStory === undefined) return;
+        const next = [...currentStory.images];
+        const target = index + delta;
+        if (target < 0 || target >= next.length) return;
+        [next[index], next[target]] = [next[target], next[index]];
+        currentStory.images = next;
+    }
+
+    function handleDrop(e: DragEvent) {
+        dragover = false;
+        uploadFiles(e.dataTransfer?.files);
+    }
+
+    function handleFileInput(e: Event) {
+        const input = e.target as HTMLInputElement;
+        uploadFiles(input.files);
+        input.value = "";
+    }
 
     async function generate() {
         if (currentStory !== undefined) {
@@ -279,6 +376,21 @@
                         <div use:editor class="h-100"/>
                         <!-- <textarea id="main" placeholder="spam" class="form-control h-100" rows="6" bind:value={currentStory.text}></textarea> -->
                     </div>
+                    {#if showImages}
+                        <div class="h-100 col-3 images-col">
+                            {#if currentStory.images.length === 0}
+                                <div class="text-center text-muted py-3">no images</div>
+                            {:else}
+                                {#each currentStory.images as asset (asset)}
+                                    <img
+                                        class="story-img"
+                                        src={`/api/assets/${encodeURIComponent(currentStory.title)}/${encodeURIComponent(asset)}`}
+                                        alt={asset}
+                                    />
+                                {/each}
+                            {/if}
+                        </div>
+                    {/if}
                 </div>
             {:else}
                 <div class="row extras justify-content-center">
@@ -293,6 +405,56 @@
                             <textarea class="form-control" id="floatingInstruction" placeholder="instruction" style="height: 200px" bind:value={currentStory.instruction}></textarea>
                             <label for="floatingInstruction">instruction</label>
                         </div>
+                    </div>
+                </div>
+                <div class="row extras justify-content-center">
+                    <div class="col-8">
+                        <h2>images</h2>
+                        {#if currentStory.images.length > 0}
+                            <ul class="list-group list-group-flush">
+                                {#each currentStory.images as img, i (img)}
+                                    <li class="list-group-item d-flex align-items-center gap-2">
+                                        <img
+                                            class="image-thumb"
+                                            src={`/api/assets/${encodeURIComponent(currentStory.title)}/${encodeURIComponent(img)}`}
+                                            alt={img}
+                                        />
+                                        <span class="flex-grow-1 text-truncate">{img}</span>
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-outline-secondary" on:click={() => moveImage(i, -1)} disabled={i === 0} aria-label="move up">↑</button>
+                                            <button class="btn btn-sm btn-outline-secondary" on:click={() => moveImage(i, 1)} disabled={i === currentStory.images.length - 1} aria-label="move down">↓</button>
+                                            <button class="btn btn-sm btn-outline-danger" on:click={() => deleteImage(img)} aria-label="delete">delete</button>
+                                        </div>
+                                    </li>
+                                {/each}
+                            </ul>
+                        {/if}
+                        <div
+                            class="image-drop-zone"
+                            class:dragover
+                            role="button"
+                            tabindex="0"
+                            on:click={() => fileInput.click()}
+                            on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); }}
+                            on:dragover|preventDefault={() => dragover = true}
+                            on:dragenter|preventDefault={() => dragover = true}
+                            on:dragleave={() => dragover = false}
+                            on:drop|preventDefault={handleDrop}
+                        >
+                            {#if uploadStatus !== undefined}
+                                {uploadStatus}
+                            {:else}
+                                drop images here or click to select
+                            {/if}
+                        </div>
+                        <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            style="display: none;"
+                            bind:this={fileInput}
+                            on:change={handleFileInput}
+                        />
                     </div>
                 </div>
                 <div class="row extras justify-content-center">
@@ -383,6 +545,13 @@
                             <button class="btn btn-outline-primary" on:click={undoGeneration} disabled={textBeforeGeneration === undefined}>undo</button>
                         </div>
                     </div>
+                    <div class="col-1 text-center">
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-primary" style="height:58px;" on:click={toggleImages}>
+                                {showImages ? "hide" : "images"}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         {/if}
@@ -403,6 +572,47 @@
     div.extras {
         padding-top: 12px;
         padding-bottom: 12px;
+    }
+
+    .image-drop-zone {
+        border: 2px dashed #6c757d;
+        border-radius: 6px;
+        padding: 32px;
+        text-align: center;
+        color: #adb5bd;
+        cursor: pointer;
+        transition: border-color 0.15s ease-in-out, color 0.15s ease-in-out, background-color 0.15s ease-in-out;
+    }
+
+    .image-drop-zone:hover,
+    .image-drop-zone.dragover {
+        border-color: #0d6efd;
+        color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.08);
+    }
+
+    .images-col {
+        overflow-y: auto;
+    }
+
+    .story-img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 6px;
+        margin-bottom: 12px;
+    }
+
+    .story-img:last-child {
+        margin-bottom: 0;
+    }
+
+    .image-thumb {
+        width: 48px;
+        height: 48px;
+        object-fit: cover;
+        border-radius: 4px;
+        flex-shrink: 0;
     }
 
 </style>

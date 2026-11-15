@@ -9,6 +9,8 @@ pub struct Story {
     description: String,
     instruction: String,
     model: String,
+    #[serde(default)]
+    images: Vec<String>,
 }
 
 impl Story {

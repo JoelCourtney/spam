@@ -6,7 +6,8 @@ export interface Story {
     },
     description: string,
     instruction: string,
-    model: string
+    model: string,
+    images: string[]
 }
 
 export interface Generation {
